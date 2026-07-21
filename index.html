@@ -533,12 +533,21 @@ function applySettings(){
 async function loadQuotes(){
   if(SHEET_CSV_URL){
     try{
-      const res = await fetch(SHEET_CSV_URL, {cache:"no-store"});
-      const rows = parseCSV(await res.text())
-        .slice(1)
-        .map(r=>[String(r[0]||"").trim(), String(r[1]||"").trim(), String(r[2]||"").trim()])
-        .filter(r=>r[0].length>0);
-      if(rows.length) quotes = rows;
+      // 오늘 이미 불러온 시트 데이터가 있으면 재사용 (같은 날 동일 명언 보장)
+      const cached = store.get("molip_sheet_cache");
+      if(cached && cached.date === today && cached.rows && cached.rows.length > 0){
+        quotes = cached.rows;
+      } else {
+        const res = await fetch(SHEET_CSV_URL);
+        const rows = parseCSV(await res.text())
+          .slice(1)
+          .map(r=>[String(r[0]||"").trim(), String(r[1]||"").trim(), String(r[2]||"").trim()])
+          .filter(r=>r[0].length>0);
+        if(rows.length){
+          quotes = rows;
+          store.set("molip_sheet_cache", {date: today, rows: rows});
+        }
+      }
     }catch(e){}
   }
   renderCover();
