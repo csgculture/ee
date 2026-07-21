@@ -370,12 +370,8 @@
 
 <script>
 /* ============================================================
-   설정 — 관리 항목
-   1) SHEET_CSV_URL : 구글 시트 '웹에 게시(CSV)' 주소.
-      비워두면 내장 명언 사용. 형식: A열=명언, B열=출처, C열=영어(선택)
-   3) ARCHIVE_START : '지난 문장'을 보여줄 시작일(서비스 오픈일)
+   설정
    ============================================================ */
-const SHEET_CSV_URL  = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8lo74zwzAmriEptbaJeix6VDd-FFyWRSCpMJpv08HqLtF1cOEvLgWvejPCBnOZ6F63SWEM-b4wo-3/pub?gid=0&single=true&output=csv";
 const LOGO_LIGHT     = "logo-navy.png";   /* 라이트 모드용 (네이비 로고) */
 const LOGO_DARK      = "logo-white.png";  /* 다크 모드용 (화이트 로고) */
 const ARCHIVE_START  = "2026-07-01";
@@ -384,7 +380,7 @@ const ARCHIVE_START  = "2026-07-01";
 const DAY_COLORS = ["#4B50F0","#6E78F5","#8282FF","#00AADC","#00C8F5"];
 
 /* 시트 연동 전용 — 내장 명언 없음 */
-const FALLBACK_QUOTES = [];
+
 
 /* ---------- 유틸 ---------- */
 const $ = (id)=>document.getElementById(id);
@@ -413,28 +409,49 @@ function fmtKo(dateStr){
   const p=parts(dateStr);
   return `${p.y}년 ${p.m}월 ${p.d}일 ${WDAYS_KO[p.w]}요일`;
 }
-function parseCSV(text){
-  const rows=[]; let row=[], cur="", q=false;
-  for(let i=0;i<text.length;i++){
-    const c=text[i];
-    if(q){
-      if(c==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; }
-      else cur+=c;
-    }else{
-      if(c==='"') q=true;
-      else if(c===","){ row.push(cur); cur=""; }
-      else if(c==="\n"||c==="\r"){ if(cur!==""||row.length){row.push(cur);rows.push(row);row=[];cur="";} if(c==="\r"&&text[i+1]==="\n")i++; }
-      else cur+=c;
-    }
-  }
-  if(cur!==""||row.length){ row.push(cur); rows.push(row); }
-  return rows;
-}
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 
 /* ---------- 상태 ---------- */
 const today = kstToday();
-let quotes = FALLBACK_QUOTES;
+const QUOTES = [
+  ["훌륭한 일을 하는 유일한 방법은 자신이 하는 일을 사랑하는 것이다.","스티브 잡스(Steve Jobs)","The only way to do great work is to love what you do."],
+  ["미래를 예측하는 가장 좋은 방법은 미래를 만드는 것이다.","피터 드러커(Peter Drucker)","The best way to predict the future is to create it."],
+  ["아는 사람은 좋아하는 사람만 못하고, 좋아하는 사람은 즐기는 사람만 못하다.","공자(Confucius)","Those who know it are not equal to those who love it, and those who love it are not equal to those who enjoy it."],
+  ["기회는 대개 힘든 노동으로 위장하고 있어서, 대부분의 사람들이 알아보지 못한다.","앤 랜더스(Ann Landers)","Opportunities are usually disguised as hard work, so most people don't recognize them."],
+  ["성공은 최종적인 것이 아니며, 실패는 치명적인 것이 아니다. 중요한 것은 계속하는 용기다.","윈스턴 처칠(Winston Churchill)","Success is not final, failure is not fatal: it is the courage to continue that counts."],
+  ["어제의 자신과 비교하라. 오늘의 다른 사람과 비교하지 마라.","조던 피터슨(Jordan Peterson)","Compare yourself to who you were yesterday, not to who someone else is today."],
+  ["자기 자신을 이기는 것이 가장 위대한 승리다.","플라톤(Plato)","The first and greatest victory is to conquer yourself."],
+  ["좋음은 위대함의 적이다.","짐 콜린스(Jim Collins)","Good is the enemy of great."],
+  ["넘어진 것이 중요한 게 아니라, 다시 일어나는 것이 중요하다.","빈스 롬바르디(Vince Lombardi)","It's not whether you get knocked down; it's whether you get up."],
+  ["1%의 개선을 매일 반복하면, 1년 후에는 37배가 된다.","제임스 클리어(James Clear)","If you get one percent better each day for one year, you'll end up thirty-seven times better by the time you're done."],
+  ["성공이란 열정을 잃지 않고 실패에서 실패로 걸어가는 것이다.","윈스턴 처칠(Winston Churchill)","Success is walking from failure to failure with no loss of enthusiasm."],
+  ["행동한 것이 말한 것보다 낫다.","벤저민 프랭클린(Benjamin Franklin)","Well done is better than well said."],
+  ["우리는 반복적으로 행하는 것 그 자체다. 탁월함은 행위가 아니라 습관이다.","아리스토텔레스(Aristotle)","We are what we repeatedly do. Excellence, then, is not an act, but a habit."],
+  ["배움을 멈추는 자는, 20세든 80세든 늙은 것이다.","헨리 포드(Henry Ford)","Anyone who stops learning is old, whether at twenty or eighty."],
+  ["성공의 비결은 시작하는 것이다.","마크 트웨인(Mark Twain)","The secret of getting ahead is getting started."],
+  ["가장 큰 영광은 넘어지지 않는 데 있는 것이 아니라, 넘어질 때마다 다시 일어서는 데 있다.","공자(Confucius)","Our greatest glory is not in never falling, but in rising every time we fall."],
+  ["오늘 할 수 있는 일을 내일로 미루지 마라.","벤저민 프랭클린(Benjamin Franklin)","Never leave that till tomorrow which you can do today."],
+  ["배움에는 왕도가 없다.","유클리드(Euclid)","There is no royal road to learning."],
+  ["안전지대를 벗어나라. 어색하고 불편한 감정을 기꺼이 감수할 때만 성장할 수 있다.","브라이언 트레이시(Brian Tracy)","Move out of your comfort zone. You can only grow if you are willing to feel awkward and uncomfortable."],
+  ["배움은 끝이 없고, 겸손함은 배움의 시작이다.","이황(李滉)","Learning has no end, and humility is where learning begins."],
+  ["내가 6시간 안에 나무를 베어야 한다면, 처음 4시간은 도끼를 가는 데 쓰겠다.","에이브러햄 링컨(Abraham Lincoln)","Give me six hours to chop down a tree and I will spend the first four sharpening the axe."],
+  ["변화하지 않으면 성장하지 못하고, 성장하지 못하면 진정으로 사는 것이 아니다.","게일 시히(Gail Sheehy)","If you don't change, you don't grow. If you don't grow, you aren't really living."],
+  ["사람들의 약점 대신 강점에 집중하면 어떻게 될까.","돈 클리프턴(Don Clifton)","What would happen if we studied what was right with people versus what was wrong with people?"],
+  ["원하는 뭐든지 될 수는 없다. 하지만 이미 가진 자신의 모습을 더 키울 수는 있다.","톰 래스(Tom Rath)","You cannot be anything you want to be — but you can be a lot more of who you already are."],
+  ["살아야 할 이유를 가진 사람은 거의 어떤 상황도 견딜 수 있다.","프리드리히 니체(Friedrich Nietzsche)","He who has a why to live can bear almost any how."],
+  ["당신이 하는 일을 사랑하라. 그러면 평생 하루도 일하지 않을 것이다.","공자(Confucius)","Choose a job you love, and you will never have to work a day in your life."],
+  ["팀의 힘은 각 구성원에게 있고, 각 구성원의 힘은 팀에 있다.","필 잭슨(Phil Jackson)","The strength of the team is each individual member. The strength of each member is the team."],
+  ["동기부여란 시작하게 하는 것이고, 습관이란 계속하게 하는 것이다.","짐 륜(Jim Ryun)","Motivation is what gets you started. Habit is what keeps you going."],
+  ["변화의 속도가 학습의 속도보다 빠르면, 끝이 가까운 것이다.","잭 웰치(Jack Welch)","If the rate of change on the outside exceeds the rate of change on the inside, the end is near."],
+  ["피드백은 챔피언의 아침 식사다.","켄 블랜차드(Ken Blanchard)","Feedback is the breakfast of champions."],
+  ["위대한 일은 작은 일들의 연속으로 이루어진다.","빈센트 반 고흐(Vincent van Gogh)","Great things are done by a series of small things brought together."],
+  ["연습이 완벽을 만드는 게 아니다. 완벽한 연습이 완벽을 만든다.","빈스 롬바르디(Vince Lombardi)","Practice does not make perfect. Only perfect practice makes perfect."],
+  ["계획 없는 목표는 한낱 소원에 불과하다.","생텍쥐페리(Saint-Exupéry)","A goal without a plan is just a wish."],
+  ["당신의 가장 불만족스러운 고객이 당신의 가장 위대한 학습 원천이다.","빌 게이츠(Bill Gates)","Your most unhappy customers are your greatest source of learning."],
+  ["나태함은 녹과 같아서 노동 이상으로 소모시킨다.","벤저민 프랭클린(Benjamin Franklin)","Sloth, like rust, consumes faster than labor wears."],
+  ["배우고 때때로 익히면, 기쁘지 아니한가.","공자(Confucius)","Is it not a joy to study and practice what you have learned?"]
+];
+var quotes = QUOTES;
 let settings = Object.assign({theme:"auto", accent:"auto", fontSize:1}, store.get("molip_settings")||{});
 
 /* 시스템 다크모드 감지 */
@@ -489,32 +506,9 @@ function applySettings(){
 }
 
 /* ---------- 데이터 로드 ---------- */
-async function loadQuotes(){
-  if(!SHEET_CSV_URL){ renderCover(); renderToday(); return; }
-  var cached = store.get("molip_sheet_cache");
-  if(cached && cached.rows && cached.rows.length > 0){
-    quotes = cached.rows;
-  }
+function loadQuotes(){
   renderCover();
   renderToday();
-  try{
-    var needRefresh = !cached || cached.date !== today;
-    if(needRefresh){
-      var res = await fetch(SHEET_CSV_URL);
-      var raw = (await res.text()).replace(/^\uFEFF/,"").trim();
-      var rows = parseCSV(raw)
-        .slice(1)
-        .map(function(r){return [String(r[0]||"").trim(), String(r[1]||"").trim(), String(r[2]||"").trim()];})
-        .filter(function(r){return r[0].length>0;});
-      if(rows.length > 0){
-        store.set("molip_sheet_cache", {date: today, rows: rows});
-        if(quotes.length === 0 || cached === null || cached.date !== today){
-          quotes = rows;
-          renderToday();
-        }
-      }
-    }
-  }catch(e){}
 }
 
 /* ---------- 렌더: 표지 ---------- */
@@ -531,6 +525,12 @@ function renderCover(){
 
 /* ---------- 렌더: 오늘의 몰입 ---------- */
 function renderToday(){
+  if(quotes.length === 0){
+    $("quoteText").textContent = "명언을 불러오는 중...";
+    $("quoteEn").style.display = "none";
+    $("quoteAuthor").textContent = "";
+    return;
+  }
   const p = parts(today);
   const q = quoteFor(today);
   $("vYear").textContent = p.y;
